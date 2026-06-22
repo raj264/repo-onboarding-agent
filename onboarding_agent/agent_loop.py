@@ -5,6 +5,7 @@ from onboarding_agent.mcp_client import McpToolClient
 from onboarding_agent.prompts import SYSTEM_PROMPT
 
 _MAX_TOKENS = 4096
+_MAX_TOOL_ITERATIONS = 10
 
 
 class Agent:
@@ -20,10 +21,8 @@ class Agent:
         self._model = model
         self._system_prompt = system_prompt
 
-    async def run_turn(self, messages: list[dict]) -> list[dict]:
-        tools = await self._mcp_client.list_anthropic_tools()
-
-        response = await self._anthropic_client.messages.create(
+    async def _create_response(self, messages: list[dict], tools: list[dict]):
+        return await self._anthropic_client.messages.create(
             model=self._model,
             max_tokens=_MAX_TOKENS,
             system=self._system_prompt,
@@ -31,7 +30,31 @@ class Agent:
             messages=messages,
         )
 
+    async def run_turn(self, messages: list[dict]) -> list[dict]:
+        tools = await self._mcp_client.list_anthropic_tools()
+        response = await self._create_response(messages, tools)
+
+        iterations = 0
         while response.stop_reason == "tool_use":
+            iterations += 1
+            if iterations > _MAX_TOOL_ITERATIONS:
+                messages.append({"role": "assistant", "content": response.content})
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": (
+                                    f"Stopped after {_MAX_TOOL_ITERATIONS} tool calls without "
+                                    "reaching a final answer. Try a more specific question."
+                                ),
+                            }
+                        ],
+                    }
+                )
+                return messages
+
             tool_results = []
             for block in response.content:
                 if block.type != "tool_use":
@@ -53,13 +76,7 @@ class Agent:
             messages.append({"role": "assistant", "content": response.content})
             messages.append({"role": "user", "content": tool_results})
 
-            response = await self._anthropic_client.messages.create(
-                model=self._model,
-                max_tokens=_MAX_TOKENS,
-                system=self._system_prompt,
-                tools=tools,
-                messages=messages,
-            )
+            response = await self._create_response(messages, tools)
 
         messages.append({"role": "assistant", "content": response.content})
         return messages

@@ -3,6 +3,7 @@ import asyncio
 import sys
 from pathlib import Path
 
+from anthropic import AsyncAnthropic
 from dotenv import load_dotenv
 
 from onboarding_agent import indexer
@@ -43,8 +44,6 @@ def cmd_index(args: argparse.Namespace) -> int:
 
 
 async def cmd_ask(args: argparse.Namespace) -> int:
-    from anthropic import AsyncAnthropic
-
     get_anthropic_api_key()
     async with McpToolClient(args.target_repo, allow_pr=args.allow_pr) as mcp_client:
         agent = Agent(mcp_client, AsyncAnthropic(), model=args.model)
@@ -54,8 +53,6 @@ async def cmd_ask(args: argparse.Namespace) -> int:
 
 
 async def cmd_chat(args: argparse.Namespace) -> int:
-    from anthropic import AsyncAnthropic
-
     get_anthropic_api_key()
     async with McpToolClient(args.target_repo, allow_pr=args.allow_pr) as mcp_client:
         agent = Agent(mcp_client, AsyncAnthropic(), model=args.model)

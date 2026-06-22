@@ -85,6 +85,20 @@ async def test_ask_marks_tool_error(mock_mcp_client, mock_anthropic_client):
 
 
 @pytest.mark.asyncio
+async def test_run_turn_stops_after_max_tool_iterations(mock_mcp_client, mock_anthropic_client):
+    mock_mcp_client.call_tool.return_value = ("doc content", False)
+    mock_anthropic_client.messages.create.return_value = _response(
+        "tool_use", [_tool_use_block("id1", "search_docs", {"query": "x"})]
+    )
+
+    agent = Agent(mock_mcp_client, mock_anthropic_client)
+    answer = await agent.ask("loop forever")
+
+    assert "Stopped after" in answer
+    assert mock_mcp_client.call_tool.call_count == 10
+
+
+@pytest.mark.asyncio
 async def test_chat_step_maintains_history(mock_mcp_client, mock_anthropic_client):
     mock_anthropic_client.messages.create.return_value = _response("end_turn", [_text_block("ok")])
 

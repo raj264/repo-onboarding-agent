@@ -124,8 +124,8 @@ assistant> Opened draft PR: https://github.com/you/some-target-repo/pull/42
 | `list_files` | List files matching a glob pattern |
 | `git_log` | Recent commit history, optionally scoped to a path |
 | `git_diff` | Diff against a given ref (default `HEAD~1`) |
-| `run_tests` | Run pytest in the target repo |
-| `run_lint` | Run ruff/flake8 if configured in the target repo |
+| `run_tests` | Run the target repo's tests — detects pytest, npm test, go test, or cargo test from project markers |
+| `run_lint` | Run ruff/flake8 (Python) or eslint (JS/TS) if configured in the target repo |
 | `open_draft_pr` | Create a branch, commit changes, push, and open a draft PR (requires `--allow-pr`) |
 
 ## Testing

@@ -85,11 +85,16 @@ TOOLS = [
     ),
     types.Tool(
         name="run_tests",
-        description="Run the test suite (pytest) inside the target repository and return the output.",
+        description=(
+            "Run the target repository's test suite and return the output. Detects the runner from "
+            "project markers: pytest (pyproject.toml/setup.py/requirements.txt), npm test (package.json), "
+            "go test (go.mod), or cargo test (Cargo.toml). The optional 'path' argument only scopes pytest "
+            "runs. Reports a clear message if no recognized runner is found."
+        ),
         inputSchema={
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "Optional path/file to scope the test run to."},
+                "path": {"type": "string", "description": "Optional path/file to scope a pytest run to."},
             },
             "required": [],
         },
@@ -97,8 +102,9 @@ TOOLS = [
     types.Tool(
         name="run_lint",
         description=(
-            "Run the linter configured in the target repository (ruff or flake8), if any config is found. "
-            "Reports 'No lint config found in target repo.' if none is present."
+            "Run the linter configured in the target repository (ruff/flake8 for Python, eslint for "
+            "JavaScript/TypeScript), if any config is found. Reports 'No lint config found in target "
+            "repo.' if none is present."
         ),
         inputSchema={"type": "object", "properties": {}, "required": []},
     ),
