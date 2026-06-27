@@ -1,3 +1,7 @@
+"""Read-only git inspection tools (history + diff). No git_tools function ever mutates
+the target repo - that's reserved for `pr_tools.open_draft_pr`, gated separately.
+"""
+
 import subprocess
 from pathlib import Path
 
@@ -9,6 +13,9 @@ def _is_git_repo(target_repo: Path) -> bool:
 
 
 def _run_git(target_repo: Path, args: list[str]) -> tuple[int, str]:
+    """Runs `git -C <target_repo> <args>`, returning (exit code, stdout-or-stderr)
+    rather than raising, so callers can turn a non-zero exit into a tool-result string.
+    """
     result = subprocess.run(
         ["git", "-C", str(target_repo), *args],
         capture_output=True,
@@ -21,6 +28,7 @@ def _run_git(target_repo: Path, args: list[str]) -> tuple[int, str]:
 
 
 def git_log(target_repo: Path, path: str | None = None, n: int = 10) -> str:
+    """Returns the last `n` one-line commit messages, optionally scoped to `path`."""
     if not _is_git_repo(target_repo):
         return f"ERROR: {target_repo} is not a git repository."
 
@@ -35,6 +43,9 @@ def git_log(target_repo: Path, path: str | None = None, n: int = 10) -> str:
 
 
 def git_diff(target_repo: Path, ref: str = "HEAD~1") -> str:
+    """Returns the diff between the working tree and `ref`, truncated to
+    `_MAX_DIFF_CHARS` so a huge diff doesn't blow out the LLM's context window.
+    """
     if not _is_git_repo(target_repo):
         return f"ERROR: {target_repo} is not a git repository."
 

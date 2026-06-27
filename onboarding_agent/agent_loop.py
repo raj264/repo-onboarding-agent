@@ -1,3 +1,8 @@
+"""The Claude tool-use loop: feeds messages + the MCP tool schemas to the Anthropic API,
+executes whatever tools Claude asks for via the MCP client, feeds the results back, and
+repeats until Claude returns a final text answer (or a safety cap is hit).
+"""
+
 import asyncio
 import logging
 
@@ -28,6 +33,8 @@ def _is_retryable(exc: Exception) -> bool:
 
 
 class Agent:
+    """Ties one `McpToolClient` (the tools) to one `AsyncAnthropic` client (the brain)."""
+
     def __init__(
         self,
         mcp_client: McpToolClient,
@@ -41,6 +48,10 @@ class Agent:
         self._system_prompt = system_prompt
 
     async def _create_response(self, messages: list[dict], tools: list[dict]):
+        """Calls `messages.create`, retrying transient failures with exponential
+        backoff (1s, 2s, ... up to `_MAX_RETRY_ATTEMPTS` attempts total). Non-retryable
+        errors (e.g. 400 bad request, auth failure) propagate immediately.
+        """
         for attempt in range(_MAX_RETRY_ATTEMPTS):
             try:
                 return await self._anthropic_client.messages.create(
@@ -58,6 +69,11 @@ class Agent:
                 await asyncio.sleep(delay)
 
     async def run_turn(self, messages: list[dict]) -> list[dict]:
+        """Drives the tool-use loop for one turn: calls Claude, executes any requested
+        tool calls via MCP, appends the results, and calls Claude again - repeating until
+        `stop_reason` is no longer `"tool_use"` (a final answer) or the iteration cap is
+        hit. Mutates and returns `messages` so callers can keep accumulating history.
+        """
         tools = await self._mcp_client.list_anthropic_tools()
         response = await self._create_response(messages, tools)
 
@@ -65,6 +81,9 @@ class Agent:
         while response.stop_reason == "tool_use":
             iterations += 1
             if iterations > _MAX_TOOL_ITERATIONS:
+                # Guards against a model that keeps calling tools without ever
+                # producing a final answer - bail out with an explicit message
+                # instead of looping (and burning API calls) forever.
                 messages.append({"role": "assistant", "content": response.content})
                 messages.append(
                     {
@@ -82,6 +101,9 @@ class Agent:
                 )
                 return messages
 
+            # Execute every tool_use block in this response. A tool exception is
+            # reported back to Claude as a tool_result with is_error=True rather than
+            # raised, so the model can see what went wrong and adjust its approach.
             tool_results = []
             for block in response.content:
                 if block.type != "tool_use":
@@ -110,6 +132,9 @@ class Agent:
 
     @staticmethod
     def _final_text(messages: list[dict]) -> str:
+        """Extracts the first text block from the last assistant message. Handles both
+        SDK content-block objects (real responses) and plain dicts (as used in tests).
+        """
         last_content = messages[-1]["content"]
         for block in last_content:
             text = block.text if hasattr(block, "text") else block.get("text")
@@ -119,11 +144,15 @@ class Agent:
         return ""
 
     async def ask(self, question: str) -> str:
+        """One-shot question -> final answer, with no carried conversation history."""
         messages = [{"role": "user", "content": question}]
         messages = await self.run_turn(messages)
         return self._final_text(messages)
 
     async def chat_step(self, messages: list[dict], user_input: str) -> tuple[list[dict], str]:
+        """Appends `user_input` to existing `messages`, runs a turn, and returns the
+        updated history alongside the answer so the caller can pass it back in next time.
+        """
         messages.append({"role": "user", "content": user_input})
         messages = await self.run_turn(messages)
         return messages, self._final_text(messages)

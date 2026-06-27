@@ -1,3 +1,8 @@
+"""Runs the *target* repo's own test suite / linter - detected from project marker
+files, not from this tool's own tooling. `run_tests`/`run_lint` work on whatever
+language/ecosystem the target repo uses, as long as it's one of the ones detected below.
+"""
+
 import subprocess
 import sys
 from pathlib import Path
@@ -12,6 +17,10 @@ def _truncate(text: str) -> str:
 
 
 def _run_command(target_repo: Path, command: list[str], timeout: int, label: str) -> str:
+    """Runs `command` in `target_repo`, turning timeouts/missing-executable errors into
+    plain result strings (rather than exceptions) so the agent always gets *something*
+    useful back instead of a crash.
+    """
     try:
         result = subprocess.run(
             command,
@@ -30,6 +39,10 @@ def _run_command(target_repo: Path, command: list[str], timeout: int, label: str
 
 
 def _detect_test_command(target_repo: Path, path: str | None) -> list[str] | None:
+    """Picks a test runner from project marker files, in this priority order: Python
+    (pyproject.toml/setup.py/requirements.txt) > npm (package.json) > go (go.mod) >
+    cargo (Cargo.toml). Returns None if none of these markers are present.
+    """
     if (
         (target_repo / "pyproject.toml").exists()
         or (target_repo / "setup.py").exists()
@@ -46,6 +59,9 @@ def _detect_test_command(target_repo: Path, path: str | None) -> list[str] | Non
 
 
 def run_tests(target_repo: Path, path: str | None = None, timeout: int = 120) -> str:
+    """Runs the target repo's detected test command. `path` only narrows pytest runs
+    (the other runners don't take a comparable per-path argument here).
+    """
     command = _detect_test_command(target_repo, path)
     if command is None:
         return (
@@ -92,6 +108,10 @@ def _has_eslint_config(target_repo: Path) -> bool:
 
 
 def run_lint(target_repo: Path) -> str:
+    """Picks a linter from config files present in the target repo, in priority order
+    ruff > flake8 > eslint, and runs it. Returns a plain message (not an error) if none
+    of those configs are found - a missing lint config isn't a failure.
+    """
     if _has_ruff_config(target_repo):
         return _run_command(target_repo, ["ruff", "check", "."], 60, "lint")
     if _has_flake8_config(target_repo):

@@ -18,7 +18,9 @@ AI system working together:
 - **MCP** — a Model Context Protocol server exposes git/filesystem/test/lint/PR
   tools as a standard connector layer.
 - **Agent** — a tool-use loop ties the LLM to the MCP tools, deciding what to
-  investigate and when to act.
+  investigate and when to act. It's bounded on both sides: a capped number of
+  tool-use iterations per turn, and a bounded exponential-backoff retry around
+  the Anthropic call itself for transient rate-limit/overload errors.
 
 ## Architecture
 
@@ -27,7 +29,7 @@ CLI (argparse) -> Agent loop <-> Anthropic API (LLM, the brain)
                        |
                   MCP Client (stdio)
                        |
-                  MCP Server (7 tools)
+                  MCP Server (8 tools)
               /        |         \
         chromadb +   git/fs     pytest/lint/gh
         sentence-    tools      (run_tests, run_lint,
@@ -45,7 +47,7 @@ repo-onboarding-agent/
 │   ├── config.py         # model/embedding/chroma constants
 │   ├── indexer.py        # markdown chunking + chromadb indexing
 │   ├── retriever.py      # RAG search over the index
-│   ├── mcp_server.py      # MCP server exposing 7 tools
+│   ├── mcp_server.py      # MCP server exposing 8 tools
 │   ├── mcp_client.py      # MCP client (stdio) + Anthropic tool-schema adapter
 │   ├── agent_loop.py      # Claude tool-use loop
 │   ├── prompts.py         # system prompt

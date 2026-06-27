@@ -1,3 +1,6 @@
+# System prompt passed to every Agent (agent_loop.py) call. The open_draft_pr guidance
+# here is the second half of the two-layer safety gate on that tool - the first half is
+# the --allow-pr flag enforced in tools/pr_tools.py and mcp_server.py.
 SYSTEM_PROMPT = """\
 You are an onboarding assistant for a software repository. You help developers \
 understand how the codebase works by grounding your answers in its documentation \

@@ -1,3 +1,11 @@
+"""Command-line entry point: `onboarding-agent index|ask|chat <target-repo> ...`.
+
+Each subcommand opens an `McpToolClient` (which spawns the MCP server as a subprocess
+scoped to `target_repo`) and drives it through an `Agent`. `index` is synchronous (it just
+builds the RAG index); `ask` and `chat` are async because they talk to both the Anthropic
+API and the MCP subprocess over stdio.
+"""
+
 import argparse
 import asyncio
 import sys
@@ -13,6 +21,7 @@ from onboarding_agent.mcp_client import McpToolClient
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Defines the `index` / `ask` / `chat` subcommands and their arguments."""
     parser = argparse.ArgumentParser(prog="onboarding-agent")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -32,18 +41,21 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _add_shared_flags(parser: argparse.ArgumentParser) -> None:
+    """Flags shared by `ask` and `chat` (not `index`, which doesn't talk to the LLM)."""
     parser.add_argument("--allow-pr", action="store_true", default=False)
     parser.add_argument("--model", type=str, default=DEFAULT_MODEL)
     parser.add_argument("--k", type=int, default=5)
 
 
 def cmd_index(args: argparse.Namespace) -> int:
+    """Build/refresh the persisted RAG index for the target repo's markdown docs."""
     stats = indexer.build_index(args.target_repo)
     print(f"Indexed {stats.files_indexed} markdown files ({stats.chunks_indexed} chunks).")
     return 0
 
 
 async def cmd_ask(args: argparse.Namespace) -> int:
+    """Run a single question through the agent and print the final answer."""
     get_anthropic_api_key()
     async with McpToolClient(args.target_repo, allow_pr=args.allow_pr) as mcp_client:
         agent = Agent(mcp_client, AsyncAnthropic(), model=args.model)
@@ -53,6 +65,9 @@ async def cmd_ask(args: argparse.Namespace) -> int:
 
 
 async def cmd_chat(args: argparse.Namespace) -> int:
+    """Interactive REPL: keeps conversation history in memory for the session
+    (no persistence across CLI invocations) until the user exits or hits Ctrl+D/Ctrl+C.
+    """
     get_anthropic_api_key()
     async with McpToolClient(args.target_repo, allow_pr=args.allow_pr) as mcp_client:
         agent = Agent(mcp_client, AsyncAnthropic(), model=args.model)
@@ -64,6 +79,7 @@ async def cmd_chat(args: argparse.Namespace) -> int:
             except EOFError:
                 break
             except KeyboardInterrupt:
+                # Exit quietly on Ctrl+C instead of letting the traceback through.
                 print()
                 break
             if user_input.strip().lower() in {"exit", "quit"}:
@@ -74,6 +90,11 @@ async def cmd_chat(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Parses args, loads `.env`, and dispatches to the matching `cmd_*` function.
+
+    `index` runs synchronously; `ask`/`chat` are wrapped in `asyncio.run` since they
+    await the Anthropic API and the MCP stdio client.
+    """
     load_dotenv()
     parser = build_parser()
     args = parser.parse_args(argv)

@@ -1,3 +1,7 @@
+"""MCP client: spawns `mcp_server.py` as a subprocess and talks to it over stdio,
+adapting between MCP's tool/result shapes and the shapes the Anthropic SDK expects.
+"""
+
 import sys
 from contextlib import AsyncExitStack
 from pathlib import Path
@@ -7,6 +11,13 @@ from mcp.client.stdio import stdio_client
 
 
 class McpToolClient:
+    """Async context manager that owns the MCP server subprocess's lifetime.
+
+    One instance per CLI invocation: entering the context spawns
+    `python -m onboarding_agent.mcp_server --target-repo ... [--allow-pr]` and opens an
+    MCP session over its stdio pipes; exiting tears the subprocess down.
+    """
+
     def __init__(self, target_repo: Path, allow_pr: bool = False):
         self._target_repo = target_repo
         self._allow_pr = allow_pr
@@ -29,6 +40,9 @@ class McpToolClient:
         await self._stack.aclose()
 
     async def list_anthropic_tools(self) -> list[dict]:
+        """Fetches the MCP server's tool list and reshapes each `mcp.types.Tool` into
+        the `{name, description, input_schema}` dict shape Anthropic's `tools=` param expects.
+        """
         result = await self.session.list_tools()
         return [
             {"name": tool.name, "description": tool.description, "input_schema": tool.inputSchema}
@@ -36,6 +50,12 @@ class McpToolClient:
         ]
 
     async def call_tool(self, name: str, arguments: dict) -> tuple[str, bool]:
+        """Invokes one MCP tool and flattens its result into `(text, is_error)`.
+
+        MCP tool results are a list of content blocks; this tool only ever returns
+        `TextContent`, so the blocks are joined into a single string for the caller
+        (`Agent.run_turn`) to hand back to Claude as a `tool_result`.
+        """
         result = await self.session.call_tool(name, arguments)
         text = "\n".join(block.text for block in result.content if block.type == "text")
         return text, bool(result.isError)

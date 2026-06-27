@@ -1,3 +1,8 @@
+"""The MCP server: advertises the 8 tools below and dispatches calls to their
+implementations in `tools/*.py`. Run as a subprocess by `mcp_client.McpToolClient`, one
+instance per CLI invocation, scoped to a single `target_repo`.
+"""
+
 import argparse
 import asyncio
 from pathlib import Path
@@ -14,6 +19,9 @@ from onboarding_agent.tools.git_tools import git_diff, git_log
 from onboarding_agent.tools.pr_tools import open_draft_pr
 from onboarding_agent.tools.test_lint_tools import run_lint, run_tests
 
+# Tool schemas advertised to the LLM via McpToolClient.list_anthropic_tools(). Keep each
+# description and inputSchema in sync with the corresponding branch in handle_call_tool
+# below and the implementation it calls in tools/*.py.
 TOOLS = [
     types.Tool(
         name="search_docs",
@@ -135,6 +143,9 @@ TOOLS = [
 
 
 def build_server(target_repo: Path, allow_pr: bool) -> Server:
+    """Constructs the MCP `Server`, closing over `target_repo`/`allow_pr` so every tool
+    call below is implicitly scoped to this run's target repository and PR permission.
+    """
     server = Server("repo-onboarding-agent")
 
     @server.list_tools()
@@ -143,6 +154,9 @@ def build_server(target_repo: Path, allow_pr: bool) -> Server:
 
     @server.call_tool()
     async def handle_call_tool(name: str, arguments: dict) -> list[types.TextContent]:
+        # Dispatch table: tool name -> implementation in tools/*.py. Each branch maps
+        # the MCP `arguments` dict onto that function's keyword arguments, applying the
+        # same defaults declared in the matching TOOLS[].inputSchema above.
         arguments = arguments or {}
 
         if name == "search_docs":
@@ -178,6 +192,9 @@ def build_server(target_repo: Path, allow_pr: bool) -> Server:
 
 
 async def run_stdio(target_repo: Path, allow_pr: bool) -> None:
+    """Builds the server and serves it over stdio until the parent process (the
+    `McpToolClient` that spawned this subprocess) closes the pipes.
+    """
     server = build_server(target_repo, allow_pr)
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
         await server.run(
@@ -195,6 +212,9 @@ async def run_stdio(target_repo: Path, allow_pr: bool) -> None:
 
 
 def main() -> None:
+    """Entry point for `python -m onboarding_agent.mcp_server`, the command
+    `McpToolClient` spawns as a subprocess (see mcp_client.py).
+    """
     parser = argparse.ArgumentParser(description="Repo Onboarding Agent MCP server")
     parser.add_argument("--target-repo", required=True, type=Path)
     parser.add_argument("--allow-pr", action="store_true", default=False)

@@ -1,3 +1,8 @@
+"""RAG search over an already-built index (see `indexer.py` for how the index is
+created). Kept separate from `indexer.py` so the read path and write path can be
+tested/reasoned about independently.
+"""
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -6,17 +11,30 @@ from onboarding_agent.indexer import embed_texts
 
 
 class IndexNotFoundError(Exception):
-    pass
+    """Raised when no index exists yet, or it exists but is empty.
+
+    Callers (see `tools/docs_tools.py`) catch this and surface the message directly to
+    the LLM/user rather than letting it propagate as an unhandled exception - "run index
+    first" is an actionable instruction, not a bug.
+    """
 
 
 @dataclass
 class DocResult:
+    """One retrieved chunk: its text, the source markdown file it came from, and a
+    distance score (lower = more similar; chromadb returns cosine distance, not similarity).
+    """
+
     text: str
     source_path: str
     score: float
 
 
 def get_chroma_collection(persist_dir: Path):
+    """Opens (or creates) the chromadb collection at `persist_dir`. `get_or_create` makes
+    this safe to call before an index has ever been built - the resulting collection is
+    just empty, which `search_docs` checks for explicitly.
+    """
     import chromadb
     from chromadb.config import Settings
 
@@ -25,6 +43,11 @@ def get_chroma_collection(persist_dir: Path):
 
 
 def search_docs(repo_path: Path, query: str, k: int = 5, persist_dir: Path | None = None) -> list[DocResult]:
+    """Embeds `query` and returns the `k` nearest indexed chunks for `repo_path`.
+
+    Raises `IndexNotFoundError` if the index directory doesn't exist yet or exists but
+    has nothing in it, in both cases pointing the caller at `onboarding-agent index`.
+    """
     persist_dir = persist_dir or (repo_path / CHROMA_DIR_NAME)
     if not persist_dir.exists():
         raise IndexNotFoundError(
@@ -40,6 +63,8 @@ def search_docs(repo_path: Path, query: str, k: int = 5, persist_dir: Path | Non
     query_embedding = embed_texts([query])
     results = collection.query(query_embeddings=query_embedding, n_results=k)
 
+    # chromadb's query() returns one outer list per input query embedding; we only ever
+    # pass one query string, so we always want index [0].
     documents = results.get("documents", [[]])[0]
     metadatas = results.get("metadatas", [[]])[0]
     distances = results.get("distances", [[]])[0]
