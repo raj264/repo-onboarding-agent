@@ -1,7 +1,9 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import httpx
 import pytest
+from anthropic import APIStatusError
 
 from onboarding_agent.agent_loop import Agent
 
@@ -34,9 +36,7 @@ def mock_anthropic_client():
 
 @pytest.mark.asyncio
 async def test_ask_returns_final_text_without_tool_use(mock_mcp_client, mock_anthropic_client):
-    mock_anthropic_client.messages.create.return_value = _response(
-        "end_turn", [_text_block("hello there")]
-    )
+    mock_anthropic_client.messages.create.return_value = _response("end_turn", [_text_block("hello there")])
 
     agent = Agent(mock_mcp_client, mock_anthropic_client)
     answer = await agent.ask("hi")
@@ -107,3 +107,51 @@ async def test_chat_step_maintains_history(mock_mcp_client, mock_anthropic_clien
 
     assert answer == "ok"
     assert messages[0] == {"role": "user", "content": "first question"}
+
+
+def _api_status_error(status_code: int) -> APIStatusError:
+    request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    response = httpx.Response(status_code=status_code, request=request)
+    return APIStatusError("simulated error", response=response, body=None)
+
+
+@pytest.mark.asyncio
+async def test_create_response_retries_on_overloaded_then_succeeds(
+    mock_mcp_client, mock_anthropic_client, monkeypatch
+):
+    monkeypatch.setattr("onboarding_agent.agent_loop.asyncio.sleep", AsyncMock())
+    mock_anthropic_client.messages.create.side_effect = [
+        _api_status_error(529),
+        _response("end_turn", [_text_block("recovered")]),
+    ]
+
+    agent = Agent(mock_mcp_client, mock_anthropic_client)
+    answer = await agent.ask("hi")
+
+    assert answer == "recovered"
+    assert mock_anthropic_client.messages.create.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_create_response_does_not_retry_non_retryable_errors(mock_mcp_client, mock_anthropic_client):
+    mock_anthropic_client.messages.create.side_effect = _api_status_error(400)
+
+    agent = Agent(mock_mcp_client, mock_anthropic_client)
+    with pytest.raises(APIStatusError):
+        await agent.ask("hi")
+
+    assert mock_anthropic_client.messages.create.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_create_response_raises_after_exhausting_retries(
+    mock_mcp_client, mock_anthropic_client, monkeypatch
+):
+    monkeypatch.setattr("onboarding_agent.agent_loop.asyncio.sleep", AsyncMock())
+    mock_anthropic_client.messages.create.side_effect = _api_status_error(529)
+
+    agent = Agent(mock_mcp_client, mock_anthropic_client)
+    with pytest.raises(APIStatusError):
+        await agent.ask("hi")
+
+    assert mock_anthropic_client.messages.create.call_count == 3

@@ -63,6 +63,9 @@ async def cmd_chat(args: argparse.Namespace) -> int:
                 user_input = input("you> ")
             except EOFError:
                 break
+            except KeyboardInterrupt:
+                print()
+                break
             if user_input.strip().lower() in {"exit", "quit"}:
                 break
             messages, answer = await agent.chat_step(messages, user_input)

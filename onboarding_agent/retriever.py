@@ -18,14 +18,13 @@ class DocResult:
 
 def get_chroma_collection(persist_dir: Path):
     import chromadb
+    from chromadb.config import Settings
 
-    client = chromadb.PersistentClient(path=str(persist_dir))
+    client = chromadb.PersistentClient(path=str(persist_dir), settings=Settings(anonymized_telemetry=False))
     return client.get_or_create_collection(name=CHROMA_COLLECTION_NAME)
 
 
-def search_docs(
-    repo_path: Path, query: str, k: int = 5, persist_dir: Path | None = None
-) -> list[DocResult]:
+def search_docs(repo_path: Path, query: str, k: int = 5, persist_dir: Path | None = None) -> list[DocResult]:
     persist_dir = persist_dir or (repo_path / CHROMA_DIR_NAME)
     if not persist_dir.exists():
         raise IndexNotFoundError(

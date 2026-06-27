@@ -28,7 +28,9 @@ async def test_list_files_tool_dispatches(tmp_path):
     handler = server.request_handlers[__import__("mcp.types", fromlist=["CallToolRequest"]).CallToolRequest]
     from mcp.types import CallToolRequest, CallToolRequestParams
 
-    request = CallToolRequest(method="tools/call", params=CallToolRequestParams(name="list_files", arguments={}))
+    request = CallToolRequest(
+        method="tools/call", params=CallToolRequestParams(name="list_files", arguments={})
+    )
     result = await handler(request)
 
     text = result.root.content[0].text

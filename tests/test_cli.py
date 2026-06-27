@@ -25,7 +25,9 @@ def test_parses_index_command():
 
 
 def test_parses_ask_command_with_flags():
-    args = build_parser().parse_args(["ask", "/some/repo", "how does x work?", "--allow-pr", "--model", "foo"])
+    args = build_parser().parse_args(
+        ["ask", "/some/repo", "how does x work?", "--allow-pr", "--model", "foo"]
+    )
     assert args.command == "ask"
     assert args.question == "how does x work?"
     assert args.allow_pr is True
@@ -104,3 +106,25 @@ async def test_cmd_chat_runs_until_exit(monkeypatch, tmp_path, capsys):
     captured = capsys.readouterr()
     assert "hi there" in captured.out
     fake_agent.chat_step.assert_called_once_with([], "hello")
+
+
+@pytest.mark.asyncio
+async def test_cmd_chat_exits_cleanly_on_ctrl_c(monkeypatch, tmp_path):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setattr(cli_module, "McpToolClient", _FakeMcpClient)
+    monkeypatch.setattr(cli_module, "AsyncAnthropic", MagicMock())
+
+    fake_agent = MagicMock()
+    fake_agent.chat_step = AsyncMock()
+    monkeypatch.setattr(cli_module, "Agent", MagicMock(return_value=fake_agent))
+
+    def _raise_keyboard_interrupt(prompt=""):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("builtins.input", _raise_keyboard_interrupt)
+
+    args = build_parser().parse_args(["chat", str(tmp_path)])
+    result = await cmd_chat(args)
+
+    assert result == 0
+    fake_agent.chat_step.assert_not_called()

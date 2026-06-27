@@ -3,7 +3,7 @@ from onboarding_agent.tools.git_tools import git_diff, git_log
 
 def test_git_log_returns_commits(tmp_git_repo):
     output = git_log(tmp_git_repo, n=10)
-    lines = [l for l in output.splitlines() if l.strip()]
+    lines = [line for line in output.splitlines() if line.strip()]
     assert len(lines) == 2
     assert "second commit" in output
     assert "first commit" in output
@@ -11,7 +11,7 @@ def test_git_log_returns_commits(tmp_git_repo):
 
 def test_git_log_respects_n(tmp_git_repo):
     output = git_log(tmp_git_repo, n=1)
-    lines = [l for l in output.splitlines() if l.strip()]
+    lines = [line for line in output.splitlines() if line.strip()]
     assert len(lines) == 1
     assert "second commit" in output
 

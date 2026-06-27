@@ -1,11 +1,30 @@
-from anthropic import AsyncAnthropic
+import asyncio
+import logging
+
+from anthropic import APIConnectionError, APIStatusError, AsyncAnthropic
 
 from onboarding_agent.config import DEFAULT_MODEL
 from onboarding_agent.mcp_client import McpToolClient
 from onboarding_agent.prompts import SYSTEM_PROMPT
 
+logger = logging.getLogger(__name__)
+
 _MAX_TOKENS = 4096
 _MAX_TOOL_ITERATIONS = 10
+_MAX_RETRY_ATTEMPTS = 3
+_RETRY_BASE_DELAY_SECONDS = 1.0
+_RETRYABLE_STATUS_CODES = {429, 529}
+
+
+def _is_retryable(exc: Exception) -> bool:
+    """Transient errors worth retrying: connection issues, rate limits, and
+    5xx/overloaded responses. Anything else (bad request, auth, etc.) fails fast.
+    """
+    if isinstance(exc, APIConnectionError):
+        return True
+    if isinstance(exc, APIStatusError):
+        return exc.status_code in _RETRYABLE_STATUS_CODES or exc.status_code >= 500
+    return False
 
 
 class Agent:
@@ -22,13 +41,21 @@ class Agent:
         self._system_prompt = system_prompt
 
     async def _create_response(self, messages: list[dict], tools: list[dict]):
-        return await self._anthropic_client.messages.create(
-            model=self._model,
-            max_tokens=_MAX_TOKENS,
-            system=self._system_prompt,
-            tools=tools,
-            messages=messages,
-        )
+        for attempt in range(_MAX_RETRY_ATTEMPTS):
+            try:
+                return await self._anthropic_client.messages.create(
+                    model=self._model,
+                    max_tokens=_MAX_TOKENS,
+                    system=self._system_prompt,
+                    tools=tools,
+                    messages=messages,
+                )
+            except Exception as exc:
+                if not _is_retryable(exc) or attempt == _MAX_RETRY_ATTEMPTS - 1:
+                    raise
+                delay = _RETRY_BASE_DELAY_SECONDS * (2**attempt)
+                logger.warning("Anthropic API call failed (%s), retrying in %.0fs...", exc, delay)
+                await asyncio.sleep(delay)
 
     async def run_turn(self, messages: list[dict]) -> list[dict]:
         tools = await self._mcp_client.list_anthropic_tools()

@@ -30,7 +30,9 @@ async def test_list_anthropic_tools_maps_mcp_schema(tmp_path):
 
     tools = await client.list_anthropic_tools()
 
-    assert tools == [{"name": "search_docs", "description": "search the docs", "input_schema": {"type": "object"}}]
+    assert tools == [
+        {"name": "search_docs", "description": "search the docs", "input_schema": {"type": "object"}}
+    ]
 
 
 @pytest.mark.asyncio

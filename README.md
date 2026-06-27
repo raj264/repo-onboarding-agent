@@ -1,5 +1,9 @@
 # Repo Onboarding Agent
 
+[![CI](https://github.com/raj264/repo-onboarding-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/raj264/repo-onboarding-agent/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](pyproject.toml)
+
 Clone this once, then point it at *any* codebase to get an AI onboarding
 assistant for that repo: it answers "how does X work" questions grounded in
 that repo's own docs, can inspect git history and run tests/lint, and can
@@ -67,6 +71,13 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
+Contributing or running the test suite? Also install dev dependencies (pytest, ruff):
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+# or: pip install -e ".[dev]"
+```
+
 ### Configure
 
 ```bash
@@ -128,11 +139,33 @@ assistant> Opened draft PR: https://github.com/you/some-target-repo/pull/42
 | `run_lint` | Run ruff/flake8 (Python) or eslint (JS/TS) if configured in the target repo |
 | `open_draft_pr` | Create a branch, commit changes, push, and open a draft PR (requires `--allow-pr`) |
 
+## Design notes / limitations
+
+A few deliberate scope decisions, not oversights:
+
+- **RAG corpus is markdown-only.** `search_docs` indexes `.md`/`.markdown` files. Most
+  repos document architecture decisions in markdown, and keeping the indexer to one
+  format keeps chunking simple and predictable. Code itself is inspected directly via
+  `read_file`/`list_files`/`git_log`/`git_diff` rather than embedded.
+- **No reranking.** Retrieval is a single local embedding model (`all-MiniLM-L6-v2`) plus
+  cosine similarity via chromadb — good enough for "find the right doc section," not
+  tuned for precision-critical retrieval.
+- **stdio transport only.** The MCP client/server pair talk over stdio (spawned
+  subprocess), not HTTP/SSE — appropriate for a single-user local CLI, not for serving
+  multiple concurrent agents against one target repo.
+- **No cross-session memory.** Each `chat` invocation starts a fresh conversation; there's
+  no persisted history across CLI runs. The RAG index, by contrast, *is* persisted
+  (`.onboarding_agent_index/`) so it doesn't need rebuilding every run.
+
 ## Testing
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
 pytest tests/ -v
+
+# lint + format check (same as CI)
+ruff check .
+ruff format --check .
 ```
 
 No `ANTHROPIC_API_KEY` is needed to run the test suite — Anthropic and

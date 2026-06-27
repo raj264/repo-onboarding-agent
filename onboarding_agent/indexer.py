@@ -71,11 +71,12 @@ def chunk_markdown(text: str, max_chars: int = 1500, overlap: int = 200) -> list
 
 def build_index(repo_path: Path, persist_dir: Path | None = None) -> IndexStats:
     import chromadb
+    from chromadb.config import Settings
 
     persist_dir = persist_dir or (repo_path / CHROMA_DIR_NAME)
     persist_dir.mkdir(parents=True, exist_ok=True)
 
-    client = chromadb.PersistentClient(path=str(persist_dir))
+    client = chromadb.PersistentClient(path=str(persist_dir), settings=Settings(anonymized_telemetry=False))
     collection = client.get_or_create_collection(name=CHROMA_COLLECTION_NAME)
 
     files_indexed = 0

@@ -50,7 +50,7 @@ def test_run_tests_detects_go(mock_run, tmp_path):
 
 @patch("onboarding_agent.tools.test_lint_tools.subprocess.run")
 def test_run_tests_detects_cargo(mock_run, tmp_path):
-    (tmp_path / "Cargo.toml").write_text("[package]\nname = \"foo\"\n")
+    (tmp_path / "Cargo.toml").write_text('[package]\nname = "foo"\n')
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
     run_tests(tmp_path)
@@ -75,6 +75,16 @@ def test_run_lint_runs_ruff_when_config_present(mock_run, tmp_path):
 @patch("onboarding_agent.tools.test_lint_tools.subprocess.run")
 def test_run_lint_runs_eslint_when_config_present(mock_run, tmp_path):
     (tmp_path / "package.json").write_text('{"eslintConfig": {}}')
+    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+    run_lint(tmp_path)
+
+    assert mock_run.call_args.args[0] == ["npx", "eslint", "."]
+
+
+@patch("onboarding_agent.tools.test_lint_tools.subprocess.run")
+def test_run_lint_detects_eslint_flat_config(mock_run, tmp_path):
+    (tmp_path / "eslint.config.js").write_text("export default [];\n")
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
     run_lint(tmp_path)

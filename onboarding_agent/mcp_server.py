@@ -33,7 +33,7 @@ TOOLS = [
     ),
     types.Tool(
         name="read_file",
-        description="Read the contents of a file in the target repository, given a path relative to the repo root.",
+        description="Read a file's contents, given a path relative to the target repository root.",
         inputSchema={
             "type": "object",
             "properties": {
@@ -44,7 +44,7 @@ TOOLS = [
     ),
     types.Tool(
         name="list_files",
-        description="List files in the target repository matching a glob pattern (e.g. '**/*.py' or 'docs/**/*.md').",
+        description="List files in the target repo matching a glob pattern (e.g. '**/*.py', 'docs/**/*.md').",
         inputSchema={
             "type": "object",
             "properties": {

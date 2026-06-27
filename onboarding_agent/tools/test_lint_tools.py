@@ -69,11 +69,26 @@ def _has_flake8_config(target_repo: Path) -> bool:
     return setup_cfg.exists() and "[flake8]" in setup_cfg.read_text(encoding="utf-8", errors="ignore")
 
 
+_ESLINT_CONFIG_NAMES = (
+    ".eslintrc",
+    ".eslintrc.json",
+    ".eslintrc.js",
+    ".eslintrc.yml",
+    # Flat config, the default format since ESLint v9 (mid-2024).
+    "eslint.config.js",
+    "eslint.config.mjs",
+    "eslint.config.cjs",
+    "eslint.config.ts",
+)
+
+
 def _has_eslint_config(target_repo: Path) -> bool:
-    if any((target_repo / name).exists() for name in (".eslintrc", ".eslintrc.json", ".eslintrc.js", ".eslintrc.yml")):
+    if any((target_repo / name).exists() for name in _ESLINT_CONFIG_NAMES):
         return True
     package_json = target_repo / "package.json"
-    return package_json.exists() and "eslintConfig" in package_json.read_text(encoding="utf-8", errors="ignore")
+    return package_json.exists() and "eslintConfig" in package_json.read_text(
+        encoding="utf-8", errors="ignore"
+    )
 
 
 def run_lint(target_repo: Path) -> str:

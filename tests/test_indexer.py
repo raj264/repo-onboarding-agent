@@ -1,10 +1,10 @@
-from pathlib import Path
-
 from onboarding_agent.indexer import build_index, chunk_markdown, iter_doc_files
 
 
 def test_iter_doc_files_finds_markdown_and_skips_noise(fixture_docs_repo_path):
-    found = sorted(p.relative_to(fixture_docs_repo_path).as_posix() for p in iter_doc_files(fixture_docs_repo_path))
+    found = sorted(
+        p.relative_to(fixture_docs_repo_path).as_posix() for p in iter_doc_files(fixture_docs_repo_path)
+    )
     assert found == ["README.md", "docs/architecture.md", "docs/faq.md"]
 
 
@@ -19,7 +19,11 @@ def test_iter_doc_files_skips_noise_dirs(tmp_path):
 
 
 def test_chunk_markdown_splits_on_headings():
-    text = "# Title\n\nintro text\n\n## Section One\n\nfirst section body\n\n## Section Two\n\nsecond section body"
+    text = (
+        "# Title\n\nintro text\n\n"
+        "## Section One\n\nfirst section body\n\n"
+        "## Section Two\n\nsecond section body"
+    )
     chunks = chunk_markdown(text)
     assert len(chunks) == 3
     assert chunks[0].startswith("# Title")

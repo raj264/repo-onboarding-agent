@@ -32,7 +32,12 @@ def test_open_draft_pr_runs_expected_command_sequence(tmp_path):
 
     with patch("onboarding_agent.tools.pr_tools.subprocess.run", side_effect=fake_run) as mock_run:
         url = open_draft_pr(
-            tmp_path, "Fix typo", "Fixes a typo in docs.", "fix-typo", {"docs/faq.md": "new content"}, allow_pr=True
+            tmp_path,
+            "Fix typo",
+            "Fixes a typo in docs.",
+            "fix-typo",
+            {"docs/faq.md": "new content"},
+            allow_pr=True,
         )
 
     assert url == "https://github.com/me/repo/pull/1"
