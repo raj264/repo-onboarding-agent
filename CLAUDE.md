@@ -5,9 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Setup
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt -r requirements-dev.txt   # or: pip install -e ".[dev]"
+# Setup (picks a Python >=3.10, creates .venv, installs runtime + dev deps)
+./scripts/install.sh --dev
+source .venv/bin/activate
+# clean rebuild after dependency/version/entry-point changes: ./scripts/reinstall.sh --dev
+# drop the venv entirely: ./scripts/uninstall.sh
 
 # Run the CLI against a target repo (any other codebase, not this one)
 cp .env.example .env   # set ANTHROPIC_API_KEY

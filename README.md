@@ -22,6 +22,18 @@ AI system working together:
   tool-use iterations per turn, and a bounded exponential-backoff retry around
   the Anthropic call itself for transient rate-limit/overload errors.
 
+## Quickstart
+
+```bash
+git clone https://github.com/raj264/repo-onboarding-agent.git && cd repo-onboarding-agent
+./scripts/install.sh           # creates .venv, installs deps + this package, seeds .env
+source .venv/bin/activate
+# edit .env and set ANTHROPIC_API_KEY=sk-ant-...
+
+onboarding-agent index ~/path/to/some-target-repo
+onboarding-agent ask ~/path/to/some-target-repo "how does the retry logic work?"
+```
+
 ## Architecture
 
 ```
@@ -52,6 +64,7 @@ repo-onboarding-agent/
 │   ├── agent_loop.py      # Claude tool-use loop
 │   ├── prompts.py         # system prompt
 │   └── tools/             # fs, git, test/lint, docs, PR tool implementations
+├── scripts/                # install.sh / uninstall.sh / reinstall.sh (.venv lifecycle)
 └── tests/                  # pytest suite (no API key required)
 ```
 
@@ -67,18 +80,35 @@ repo-onboarding-agent/
 ```bash
 git clone https://github.com/raj264/repo-onboarding-agent.git
 cd repo-onboarding-agent
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-# optional, for the `onboarding-agent` command on your PATH:
-pip install -e .
+./scripts/install.sh
 ```
 
-Contributing or running the test suite? Also install dev dependencies (pytest, ruff):
+This picks a Python >=3.10 interpreter (`python3.12`/`3.11`/`3.10`/`python3`, in that
+order, erroring out with an install hint if none qualifies — relevant on macOS, where a
+bare `python3` is often Apple's stock 3.9), creates `.venv`, and installs this package
+in editable mode so the `onboarding-agent` command and live code edits both work.
+
+Contributing or running the test suite? Pass `--dev` to also install dev dependencies
+(pytest, ruff):
 
 ```bash
-pip install -r requirements.txt -r requirements-dev.txt
-# or: pip install -e ".[dev]"
+./scripts/install.sh --dev
 ```
+
+Prefer doing it by hand instead of the script:
+
+```bash
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt -e .
+# add dev deps: pip install -r requirements-dev.txt   (or: pip install -e ".[dev]")
+```
+
+**Uninstall / reinstall:** `scripts/uninstall.sh` removes `.venv` (nothing else is
+touched — `.env` and any indexed target repos are left alone). `scripts/reinstall.sh`
+runs uninstall then install back to back (forwarding `--dev`) for a clean rebuild —
+useful after pulling changes that touch dependencies, the package version, or the
+console-script entry point, or after editing `mcp_server.py` if a Claude Desktop/Code
+config (below) needs those changes installed into the venv it points at.
 
 ### Configure
 
@@ -128,6 +158,53 @@ you> yes
 assistant> Opened draft PR: https://github.com/you/some-target-repo/pull/42
 ```
 
+### Use as an MCP server inside Claude Desktop / Claude Code
+
+No separate install — the MCP server is the same package you already set up in
+[Install](#install) above (`mcp` is a regular runtime dependency); it's just a
+different entry point (`python -m onboarding_agent.mcp_server` instead of the
+`onboarding-agent` CLI), so make sure you've run the Install steps first.
+
+The CLI above runs its own Agent loop, calling the Anthropic API directly
+(`ANTHROPIC_API_KEY` required). The same 8 tools can instead be plugged straight
+into Claude Desktop or Claude Code as an MCP server — Claude itself becomes the
+agent loop, so **no `ANTHROPIC_API_KEY` is needed for this repo** in that mode
+(you can skip [Configure](#configure) entirely if this is the only way you plan
+to use it).
+
+**Claude Desktop** — edit `claude_desktop_config.json` (macOS:
+`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "repo-onboarding-agent": {
+      "command": "/absolute/path/to/repo-onboarding-agent/.venv/bin/python",
+      "args": [
+        "-m", "onboarding_agent.mcp_server",
+        "--target-repo", "/absolute/path/to/target-repo"
+      ]
+    }
+  }
+}
+```
+
+**Claude Code** — register it as a project or user-scoped MCP server:
+
+```bash
+claude mcp add repo-onboarding-agent -- \
+  /absolute/path/to/repo-onboarding-agent/.venv/bin/python -m onboarding_agent.mcp_server \
+  --target-repo /absolute/path/to/target-repo
+```
+
+Add `--allow-pr` to either command to enable `open_draft_pr` — the same two-layer
+safety gate still applies (Claude is instructed via the tool's own description to
+confirm with you before opening anything). Use the venv's `python` directly
+(not a bare `python`/`python3`) since Desktop/Code spawn the process without your
+shell's virtualenv activation. Restart Claude Desktop / run `claude` again after
+editing the config, then just ask things like *"use search_docs to explain how
+the retry logic works in this repo."*
+
 ## MCP Tools Exposed
 
 | Tool | Description |
@@ -162,7 +239,8 @@ A few deliberate scope decisions, not oversights:
 ## Testing
 
 ```bash
-pip install -r requirements.txt -r requirements-dev.txt
+./scripts/install.sh --dev
+source .venv/bin/activate
 pytest tests/ -v
 
 # lint + format check (same as CI)
