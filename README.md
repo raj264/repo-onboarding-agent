@@ -64,9 +64,17 @@ repo-onboarding-agent/
 │   ├── agent_loop.py      # Claude tool-use loop
 │   ├── prompts.py         # system prompt
 │   └── tools/             # fs, git, test/lint, docs, PR tool implementations
-├── scripts/                # install/uninstall/reinstall (.venv lifecycle) + setup_mcp.sh
+├── scripts/                # see table below
 └── tests/                  # pytest suite (no API key required)
 ```
+
+| Script | Purpose |
+|---|---|
+| `install.sh [--dev]` | Detects OS + a Python ≥3.10, creates `.venv`, installs runtime deps in editable mode (`--dev` adds pytest/ruff), seeds `.env`. |
+| `uninstall.sh` | Removes `.venv`. Nothing else (`.env`, indexed target repos) is touched. |
+| `reinstall.sh [--dev]` | Runs `uninstall.sh` then `install.sh` back to back — a clean rebuild after dependency/version/entry-point changes. |
+| `setup_mcp.sh <target-repo> [--allow-pr]` | Wires this repo's MCP server into Claude Desktop's config and Claude Code, dynamically, for the given target repo. |
+| `_common.sh` | Shared OS-detection helpers sourced by the scripts above — not meant to be run directly. |
 
 ## Getting Started
 
@@ -186,10 +194,12 @@ to use it).
 
 **`scripts/setup_mcp.sh <path-to-target-repo> [--allow-pr]`** wires this up with no
 placeholder paths to hand-edit — it resolves this repo's venv python and the target
-repo's absolute path dynamically, then:
-- merges a `repo-onboarding-agent` entry into Claude Desktop's
-  `claude_desktop_config.json` (macOS/Windows; there's no official Desktop client on
-  Linux, so this step is skipped there), backing up the existing file first;
+repo's absolute path dynamically, derives a server name from the target repo's folder
+(e.g. `onboarding-myproject`, not a single shared slot — pointing it at multiple repos
+creates multiple independent entries instead of each one overwriting the last), then:
+- merges that entry into Claude Desktop's `claude_desktop_config.json` (macOS/Windows;
+  there's no official Desktop client on Linux, so this step is skipped there), backing
+  up the existing file first;
 - registers the same server with Claude Code via `claude mcp add`, if the `claude` CLI
   is on PATH.
 
@@ -210,7 +220,7 @@ chat before opening anything).
 ```json
 {
   "mcpServers": {
-    "repo-onboarding-agent": {
+    "onboarding-<target-repo-folder-name>": {
       "command": "/absolute/path/to/repo-onboarding-agent/.venv/bin/python",
       "args": [
         "-m", "onboarding_agent.mcp_server",
@@ -221,7 +231,7 @@ chat before opening anything).
 }
 ```
 
-For Claude Code directly: `claude mcp add repo-onboarding-agent -- /absolute/path/to/repo-onboarding-agent/.venv/bin/python -m onboarding_agent.mcp_server --target-repo /absolute/path/to/target-repo`
+For Claude Code directly: `claude mcp add onboarding-<target-repo-folder-name> -- /absolute/path/to/repo-onboarding-agent/.venv/bin/python -m onboarding_agent.mcp_server --target-repo /absolute/path/to/target-repo`
 
 Either way, use the venv's `python` directly (not a bare `python`/`python3`) since
 Desktop/Code spawn the process without your shell's virtualenv activation.

@@ -110,3 +110,6 @@ error). Don't loosen either pin without confirming an Intel Mac can still instal
 `claude_desktop_config.json`) via a JSON load/merge/write done through the venv's own
 Python (passed a heredoc script over stdin), backing up the existing file first. It
 preserves any other `mcpServers` entries already present - never replace the whole file.
+The server key is derived from the target repo's folder name (`onboarding-<folder>`),
+not a single fixed slot, so pointing the script at several target repos creates several
+independent entries rather than each one overwriting the last.
