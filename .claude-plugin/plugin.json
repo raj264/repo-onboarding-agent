@@ -1,0 +1,10 @@
+{
+  "name": "repo-onboarding-agent",
+  "description": "AI onboarding tools for the current project: RAG search over its markdown docs, git history, test/lint runners, and a safety-gated draft-PR tool, exposed as an MCP server scoped to wherever this plugin is loaded.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Raj Cholleti"
+  },
+  "homepage": "https://github.com/raj264/repo-onboarding-agent",
+  "license": "MIT"
+}

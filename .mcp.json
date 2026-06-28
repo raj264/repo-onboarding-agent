@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "repo-onboarding-agent": {
+      "command": "${CLAUDE_PLUGIN_ROOT:-.}/.venv/bin/python",
+      "args": ["-m", "onboarding_agent.mcp_server", "--target-repo", "${CLAUDE_PROJECT_DIR:-.}"]
+    }
+  }
+}

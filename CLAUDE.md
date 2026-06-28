@@ -12,6 +12,9 @@ source .venv/bin/activate
 # drop the venv entirely: ./scripts/uninstall.sh
 # wire this up as an MCP server in Claude Desktop/Code for a target repo:
 ./scripts/setup_mcp.sh <path-to-target-repo> [--allow-pr]
+# or load this repo itself as a Claude Code plugin (auto-scopes to whichever
+# project it's loaded into -- see "Claude Code plugin" below):
+claude --plugin-dir /path/to/repo-onboarding-agent
 
 # Run the CLI against a target repo (any other codebase, not this one)
 cp .env.example .env   # set ANTHROPIC_API_KEY
@@ -113,3 +116,35 @@ preserves any other `mcpServers` entries already present - never replace the who
 The server key is derived from the target repo's folder name (`onboarding-<folder>`),
 not a single fixed slot, so pointing the script at several target repos creates several
 independent entries rather than each one overwriting the last.
+
+## Claude Code plugin
+
+`.claude-plugin/plugin.json` + the root `.mcp.json` make this repo installable as a
+plugin (`claude --plugin-dir /path/to/repo-onboarding-agent`) as an alternative to
+`scripts/setup_mcp.sh`. This solves the same target-repo scoping problem differently:
+`mcp_server.py`'s `--target-repo` is always required and can't be a static value baked
+into a checked-in config (the whole point of this tool is pointing it at some *other*
+repo, chosen per-clone) -- `setup_mcp.sh` solves that by writing the target path
+dynamically at script-run-time, while the plugin solves it by **scoping itself to
+whichever project Claude Code is rooted at when the plugin loads**: `.mcp.json` passes
+`${CLAUDE_PLUGIN_ROOT:-.}/.venv/bin/python` as the command (this repo's own venv,
+wherever it's installed as a plugin) and `${CLAUDE_PROJECT_DIR:-.}` as `--target-repo`
+(the *host* project, not this repo). The `:-.` fallback on both is deliberate: if this
+repo is instead opened directly (no plugin involved), both variables still resolve
+sensibly to this repo's own root, so the server registers pointed at itself rather than
+breaking outright.
+- Plugin skills are only discovered at a root-level `skills/` directory, not
+  `.claude/skills/` -- `skills/repo-onboarding-agent/SKILL.md` only exists at that path
+  (no `.claude/skills/` duplicate, unlike [[astRaj]], because this repo has no other
+  reason to carry a Skill for non-plugin use).
+- The same VSCode-extension variable-substitution bug already documented for
+  [[astRaj]] (`${CLAUDE_PROJECT_DIR}` passed through to `posix_spawn` unexpanded in some
+  builds) applies here too and isn't fixed by the `:-.` fallback -- a build that doesn't
+  substitute variables at all will pass the literal `${VAR:-.}` string through just the
+  same. If `/mcp` shows this server Failed with a literal `${...}` string in the error,
+  fall back to `scripts/setup_mcp.sh`, which hardcodes an absolute path and has no such
+  failure mode.
+- `open_draft_pr` is **not** enabled via the plugin path (no `--allow-pr` in the bundled
+  `.mcp.json` args) -- there's no way to toggle a flag at plugin-install time, so the
+  safe default wins. Users who want PR creation must still use `setup_mcp.sh
+  <target-repo> --allow-pr` directly.

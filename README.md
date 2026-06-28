@@ -64,6 +64,9 @@ repo-onboarding-agent/
 │   ├── agent_loop.py      # Claude tool-use loop
 │   ├── prompts.py         # system prompt
 │   └── tools/             # fs, git, test/lint, docs, PR tool implementations
+├── .claude-plugin/plugin.json   # Claude Code plugin manifest
+├── .mcp.json                    # MCP config the plugin (or a direct repo open) reads
+├── skills/repo-onboarding-agent/SKILL.md   # plugin Skill: when to use the MCP tools
 ├── scripts/                # see table below
 └── tests/                  # pytest suite (no API key required)
 ```
@@ -236,6 +239,25 @@ For Claude Code directly: `claude mcp add onboarding-<target-repo-folder-name> -
 Either way, use the venv's `python` directly (not a bare `python`/`python3`) since
 Desktop/Code spawn the process without your shell's virtualenv activation.
 </details>
+
+### Or: install this repo as a Claude Code plugin
+
+An alternative to `setup_mcp.sh` for Claude Code specifically — no separate
+registration step, and it auto-scopes to whatever project you load it into:
+
+```bash
+claude --plugin-dir /path/to/repo-onboarding-agent
+```
+
+This works because the bundled [`.mcp.json`](.mcp.json) passes
+`${CLAUDE_PROJECT_DIR}` as `--target-repo` — the *host* project Claude Code is
+rooted at when the plugin loads, not this repo. `open_draft_pr` is **not**
+enabled this way (no `--allow-pr` baked in); use `setup_mcp.sh ... --allow-pr`
+directly if you want that. If `/mcp` shows this server as Failed with a
+literal `${CLAUDE_PROJECT_DIR}` string in the error, your Claude Code build
+isn't substituting plugin variables correctly (observed on some non-CLI
+builds) — fall back to `setup_mcp.sh` above, which hardcodes an absolute path
+and isn't affected.
 
 ## MCP Tools Exposed
 
