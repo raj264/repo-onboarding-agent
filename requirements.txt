@@ -2,5 +2,12 @@ anthropic>=0.111,<1.0
 mcp>=1.28,<2.0
 chromadb>=1.5,<2.0
 sentence-transformers>=5.1,<6.0
-numpy>=1.26,<3.0
+# transformers>=5.0's accelerate integration breaks on torch<2.4 (NameError, not just
+# unsupported) - pin to the 4.x line sentence-transformers itself declares full support
+# for, since PyTorch stopped publishing macOS x86_64 wheels past 2.2.2.
+transformers>=4.41,<5.0
+# torch==2.2.2 (the latest PyPI wheel for macOS x86_64) predates NumPy 2.0 and was never
+# built against its C ABI - numpy>=2 causes a silent "Numpy is not available" failure
+# inside torch's tensor<->ndarray conversion at runtime, not an install-time error.
+numpy>=1.26,<2.0
 python-dotenv>=1.0,<2.0

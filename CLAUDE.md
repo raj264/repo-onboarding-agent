@@ -10,6 +10,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 source .venv/bin/activate
 # clean rebuild after dependency/version/entry-point changes: ./scripts/reinstall.sh --dev
 # drop the venv entirely: ./scripts/uninstall.sh
+# wire this up as an MCP server in Claude Desktop/Code for a target repo:
+./scripts/setup_mcp.sh <path-to-target-repo> [--allow-pr]
 
 # Run the CLI against a target repo (any other codebase, not this one)
 cp .env.example .env   # set ANTHROPIC_API_KEY
@@ -26,6 +28,7 @@ pytest tests/test_agent_loop.py::test_ask_marks_tool_error -v         # single t
 # Lint + format (same checks CI runs)
 ruff check .
 ruff format --check .          # add --check-less `ruff format .` to auto-fix
+shellcheck -x scripts/*.sh      # lints the install/uninstall/reinstall/setup_mcp scripts
 ```
 
 ## Architecture
@@ -88,3 +91,22 @@ helper rather than the dispatch site.
 Tests mock the embedding model (`tests/conftest.py`'s `mock_embedding_model` fixture
 patches `indexer.get_embedding_model`) and the Anthropic/MCP clients (`unittest.mock`), so
 the whole suite runs offline with no API key.
+
+**`scripts/*.sh` share one-time OS detection via `scripts/_common.sh`** (`detect_os`,
+`venv_bin_dir`) rather than each re-implementing it - `install.sh` and `setup_mcp.sh`
+both source it. CI only runs on `ubuntu-latest`; macOS support is real but hand-verified
+only (see README's "Design notes / limitations"), and Windows support is untested even
+though the detection logic accounts for it (`Scripts/` vs `bin/`, the `py` launcher).
+
+**`requirements.txt`'s `transformers<5.0` and `numpy<2.0` pins are load-bearing, not
+stale.** `transformers>=5.0`'s `accelerate` integration raises a real `NameError` on
+`torch<2.4`, and PyPI stopped publishing macOS x86_64 `torch` wheels past `2.2.2` - so any
+Intel Mac is permanently capped below that floor. `numpy>=2.0` similarly breaks
+`torch==2.2.2` at runtime (`RuntimeError: Numpy is not available`, not an install-time
+error). Don't loosen either pin without confirming an Intel Mac can still install and run
+`onboarding-agent index`.
+
+**`scripts/setup_mcp.sh` writes into a real external file** (Claude Desktop's
+`claude_desktop_config.json`) via a JSON load/merge/write done through the venv's own
+Python (passed a heredoc script over stdin), backing up the existing file first. It
+preserves any other `mcpServers` entries already present - never replace the whole file.
